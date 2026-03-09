@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class ProxyserverApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(ProxyserverApplication.class, args);
+        SpringApplication.run(ProxyserverApplication.class, args);
 	}
 
 }
