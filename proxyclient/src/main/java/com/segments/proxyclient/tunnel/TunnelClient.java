@@ -20,14 +20,14 @@ public class TunnelClient {
 
     // Send HTTP request bytes
     public void sendRequest(byte[] requestBytes) throws IOException {
-        out.writeInt(requestBytes.length);   // send length first
-        out.write(requestBytes);             // then the actual request
+        out.writeInt(requestBytes.length);
+        out.write(requestBytes);
         out.flush();
     }
 
     // Read raw HTTP response bytes from offshore
     public byte[] readResponse() throws IOException {
-        int length = in.readInt();           // read length first
+        int length = in.readInt();
         byte[] response = new byte[length];
         in.readFully(response);
         return response;

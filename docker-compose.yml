@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+
+  offshore-proxy:
+    build:
+      context: ./proxyserver
+    container_name: proxyserver
+    ports:
+      - "9090:9090"
+    environment:
+      TUNNEL_PORT: "9090"
+
+  ship-proxy:
+    build:
+      context: ./proxyclient
+    container_name: proxy-client
+    depends_on:
+      - offshore-proxy
+    ports:
+      - "8080:8080"
+    environment:
+      OFFSHORE_HOST: "offshore-proxy"
+      OFFSHORE_PORT: "9090"

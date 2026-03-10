@@ -19,22 +19,18 @@ public class ProxyclientApplication {
     private static final String OFFSHORE_HOST = System.getenv().getOrDefault("OFFSHORE_HOST", "localhost");
     private static final int OFFSHORE_PORT    = Integer.parseInt(System.getenv().getOrDefault("OFFSHORE_PORT", "9090"));
 
-    // one tunnel connection shared by everyone
     private static TunnelClient tunnel;
 
-    // one lock so requests go one at a time
     private static final Object LOCK = new Object();
 
     public static void main(String[] args) throws Exception {
         tunnel = new TunnelClient(OFFSHORE_HOST, OFFSHORE_PORT);
 
         ServerSocket server = new ServerSocket(LOCAL_PORT);
-        System.out.println("Ship Proxy listening on port " + LOCAL_PORT);
+        System.out.println("Ship Proxy client listening on port " + LOCAL_PORT);
 
         while (true) {
             Socket browser = server.accept();
-            // each browser connection gets a thread
-            // but LOCK ensures only 1 goes through tunnel at a time
             new Thread(() -> handleBrowser(browser)).start();
         }
     }
