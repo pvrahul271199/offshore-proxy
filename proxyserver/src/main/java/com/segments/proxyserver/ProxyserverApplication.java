@@ -35,14 +35,9 @@ public class ProxyserverApplication {
                 String requestText = new String(requestBytes, "ISO-8859-1");
                 System.out.println("Received request:\n" + requestText.split("\r\n")[0]); // print first line only
 
-                // 2. Fetch from internet
-                byte[] responseBytes = forwardToInternet(requestText, requestBytes);
-
-                // 3. Send response back
-                out.writeInt(responseBytes.length);
-                out.write(responseBytes);
+                forwardToInternet(requestText, requestBytes, out);
                 out.flush();
-                System.out.println("Response sent (" + responseBytes.length + " bytes)");
+                System.out.println("Response sent");
             }
 
         } catch (EOFException e) {
@@ -56,7 +51,7 @@ public class ProxyserverApplication {
 
     // request to the real internet
 
-    private static byte[] forwardToInternet(String requestText, byte[] rawRequest) {
+    private static void forwardToInternet(String requestText, byte[] rawRequest, DataOutputStream out) {
         try {
 
             String firstLine = requestText.substring(0, requestText.indexOf("\r\n"));
@@ -65,19 +60,19 @@ public class ProxyserverApplication {
             String urlStr    = parts[1];
 
             if (method.equalsIgnoreCase("CONNECT")) {
-                return handleConnect(urlStr);
+                handleConnect(urlStr, out);
+            } else{
+                handleHttp(method, urlStr, requestText, rawRequest, out);
             }
 
-            return handleHttp(method, urlStr, requestText, rawRequest);
-
         } catch (Exception e) {
-            return buildErrorResponse(502, "Bad Gateway: " + e.getMessage());
+            System.out.println(buildErrorResponse(502, "Bad Gateway: " + e.getMessage()));
         }
     }
 
 
-    private static byte[] handleHttp(String method, String urlStr,
-                                     String requestText, byte[] rawRequest) throws Exception {
+    private static void handleHttp(String method, String urlStr,
+                                   String requestText, byte[] rawRequest, DataOutputStream out) throws Exception {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(10_000);
@@ -110,13 +105,13 @@ public class ProxyserverApplication {
         }
 
         // response from internet
-        return readResponse(conn);
+        readResponse(conn, out);
     }
 
 
     // read response and build raw bytes
 
-    private static byte[] readResponse(HttpURLConnection conn) throws IOException {
+    private static void readResponse(HttpURLConnection conn, DataOutputStream out) throws IOException {
         int status = conn.getResponseCode();
         String statusMsg = conn.getResponseMessage() != null ? conn.getResponseMessage() : "";
 
@@ -136,25 +131,31 @@ public class ProxyserverApplication {
             ps.print(key + ": " + val + "\r\n");
         }
 
-        // Body
+        ps.print("\r\n");
+        ps.flush();
+
         InputStream bodyStream;
         try {
             bodyStream = conn.getInputStream();
         } catch (IOException e) {
             bodyStream = conn.getErrorStream();
         }
-        byte[] body = bodyStream != null ? bodyStream.readAllBytes() : new byte[0];
 
-        ps.print("Content-Length: " + body.length + "\r\n");
-        ps.print("\r\n");
-        ps.flush();
-        buf.write(body);
+        byte[] chunk = new byte[8192];
+        int n;
 
-        return buf.toByteArray();
+        while (bodyStream != null && (n = bodyStream.read(chunk)) != -1) {
+            buf.write(chunk, 0, n);
+        }
+
+        byte[] response = buf.toByteArray();
+        out.writeInt(response.length);
+        out.write(response);
+        out.flush();
     }
 
 
-    private static byte[] handleConnect(String hostPort) throws Exception {
+    private static void handleConnect(String hostPort, DataOutputStream out) throws Exception {
         String[] hp   = hostPort.split(":");
         String host   = hp[0];
         int    port   = hp.length > 1 ? Integer.parseInt(hp[1]) : 443;
@@ -175,7 +176,12 @@ public class ProxyserverApplication {
             response.write(buf, 0, n);
         }
         remote.close();
-        return response.toByteArray();
+
+
+        byte[] fullResponse = response.toByteArray();
+        out.writeInt(fullResponse.length);
+        out.write(fullResponse);
+        out.flush();
     }
 
     private static byte[] buildErrorResponse(int code, String message) {
